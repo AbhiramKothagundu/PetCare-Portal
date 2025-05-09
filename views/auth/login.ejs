@@ -1,0 +1,91 @@
+<%- include('../partials/header') %>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title text-center">Login</h3>
+                <form id="loginForm">
+                    <div class="mb-3">
+                        <label>Username</label>
+                        <input
+                            type="text"
+                            name="username"
+                            class="form-control"
+                            required
+                        />
+                    </div>
+                    <div class="mb-3">
+                        <label>Password</label>
+                        <input
+                            type="password"
+                            name="password"
+                            class="form-control"
+                            required
+                        />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        Login
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById("loginForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        try {
+            const response = await fetch("/graphql", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: `
+                    mutation Login($username: String!, $password: String!) {
+                        login(username: $username, password: $password) {
+                            token
+                            userData
+                            role
+                        }
+                    }
+                `,
+                    variables: {
+                        username: formData.get("username"),
+                        password: formData.get("password"),
+                    },
+                }),
+            });
+
+            const { data, errors } = await response.json();
+
+            if (errors) {
+                alert(errors[0].message);
+                return;
+            }
+
+            if (data.login) {
+                localStorage.setItem("token", data.login.token);
+                localStorage.setItem("userData", data.login.userData);
+
+                // Wait a moment to ensure localStorage is set
+                setTimeout(() => {
+                    // Include token in URL for initial auth
+                    const token = data.login.token;
+                    const redirectUrl =
+                        data.login.role === "admin"
+                            ? `/admin/dashboard?token=${token}`
+                            : `/user/dashboard?token=${token}`;
+
+                    window.location.replace(redirectUrl);
+                }, 100);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Login failed. Please try again.");
+        }
+    };
+</script>
+
+<%- include('../partials/footer') %>

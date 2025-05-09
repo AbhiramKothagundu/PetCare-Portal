@@ -1,0 +1,94 @@
+<%- include('../partials/header') %>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title text-center">Register</h3>
+                <form id="registerForm">
+                    <div class="mb-3">
+                        <label>Username</label>
+                        <input
+                            type="text"
+                            name="username"
+                            class="form-control"
+                            required
+                        />
+                    </div>
+                    <div class="mb-3">
+                        <label>Password</label>
+                        <input
+                            type="password"
+                            name="password"
+                            class="form-control"
+                            required
+                        />
+                    </div>
+                    <div class="mb-3">
+                        <label>Admin Code (Optional)</label>
+                        <input
+                            type="text"
+                            name="adminCode"
+                            class="form-control"
+                            placeholder="Leave empty for regular user"
+                        />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        Register
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById("registerForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        try {
+            const response = await fetch("/graphql", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: `
+                    mutation Register($username: String!, $password: String!, $adminCode: String) {
+                        register(username: $username, password: $password, adminCode: $adminCode) {
+                            token
+                            userData
+                            role
+                        }
+                    }
+                `,
+                    variables: {
+                        username: formData.get("username"),
+                        password: formData.get("password"),
+                        adminCode: formData.get("adminCode") || null,
+                    },
+                }),
+            });
+
+            const { data, errors } = await response.json();
+            if (errors) {
+                alert(errors[0].message);
+                return;
+            }
+
+            if (data.register) {
+                localStorage.setItem("token", data.register.token);
+                localStorage.setItem("userData", data.register.userData);
+
+                // Redirect based on role
+                if (data.register.role === "admin") {
+                    window.location.href = "/admin/dashboard";
+                } else {
+                    window.location.href = "/user/dashboard";
+                }
+            }
+        } catch (err) {
+            alert("Registration failed. Please try again.");
+        }
+    };
+</script>
+
+<%- include('../partials/footer') %>

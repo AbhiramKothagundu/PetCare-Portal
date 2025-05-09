@@ -1,0 +1,159 @@
+<%- include('../partials/header') %>
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3>Appointments Management</h3>
+            <div>
+                <select id="statusFilter" class="form-select">
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+        </div>
+        <div id="appointmentsList"></div>
+    </div>
+</div>
+
+<script>
+    const token = localStorage.getItem("token");
+
+    async function loadAppointments(status = "all") {
+        const response = await fetch("/graphql", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                query: `
+                query {
+                    adminAppointments {
+                        id
+                        date
+                        description
+                        status
+                        pet {
+                            name
+                            type
+                            owner {
+                                username
+                            }
+                        }
+                    }
+                }
+            `,
+            }),
+        });
+
+        const { data } = await response.json();
+        let appointments = data.adminAppointments;
+
+        if (status !== "all") {
+            appointments = appointments.filter((apt) => apt.status === status);
+        }
+
+        document.getElementById("appointmentsList").innerHTML = appointments
+            .map(
+                (apt) => `
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h5>Pet: ${apt.pet.name} (${apt.pet.type})</h5>
+                        <p>Owner: ${apt.pet.owner.username}</p>
+                        <p>Date: ${new Date(apt.date).toLocaleString()}</p>
+                        <p>Description: ${apt.description}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label>Status</label>
+                            <select onchange="updateStatus('${
+                                apt.id
+                            }', this.value)" 
+                                    class="form-select ${
+                                        apt.status === "confirmed"
+                                            ? "bg-success text-white"
+                                            : apt.status === "cancelled"
+                                            ? "bg-danger text-white"
+                                            : ""
+                                    }">
+                                <option value="pending" ${
+                                    apt.status === "pending" ? "selected" : ""
+                                }>Pending</option>
+                                <option value="confirmed" ${
+                                    apt.status === "confirmed" ? "selected" : ""
+                                }>Confirmed</option>
+                                <option value="cancelled" ${
+                                    apt.status === "cancelled" ? "selected" : ""
+                                }>Cancelled</option>
+                            </select>
+                        </div>
+                        <button onclick="deleteAppointment('${
+                            apt.id
+                        }')" class="btn btn-danger btn-sm">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `
+            )
+            .join("");
+    }
+
+    document.getElementById("statusFilter").onchange = (e) => {
+        loadAppointments(e.target.value);
+    };
+
+    async function updateStatus(id, status) {
+        await fetch("/graphql", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                query: `
+                mutation UpdateAppointment($id: ID!, $status: String!) {
+                    updateAppointment(id: $id, status: $status) {
+                        id
+                    }
+                }
+            `,
+                variables: { id, status },
+            }),
+        });
+        loadAppointments(document.getElementById("statusFilter").value);
+    }
+
+    async function deleteAppointment(id) {
+        if (!confirm("Are you sure you want to delete this appointment?"))
+            return;
+
+        await fetch("/graphql", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                query: `
+                mutation DeleteAppointment($id: ID!) {
+                    deleteAppointment(id: $id)
+                }
+            `,
+                variables: { id },
+            }),
+        });
+        loadAppointments(document.getElementById("statusFilter").value);
+    }
+
+    // Initial load
+    loadAppointments();
+</script>
+
+<%- include('../partials/footer') %>
